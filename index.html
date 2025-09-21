@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pixel Editor - WebAssembly Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        canvas {
+            border: 2px solid #333;
+            cursor: crosshair;
+            image-rendering: pixelated; /* Maintain sharp pixels when scaled */
+        }
+        
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .color-picker {
+            width: 50px;
+            height: 40px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WebAssembly Pixel Editor</h1>
+        <p>Click and drag on the canvas to draw. This editor is powered by Rust compiled to WebAssembly!</p>
+        
+        <canvas id="canvas" width="400" height="300"></canvas>
+        
+        <div class="controls">
+            <label>Color: <input type="color" id="colorPicker" class="color-picker" value="#000000"></label>
+            <button id="clearBtn">Clear Canvas</button>
+            <button id="gradientBtn">Apply Gradient</button>
+        </div>
+        
+        <div class="info">
+            <strong>Performance Info:</strong> This application demonstrates WebAssembly's performance advantages for algorithmic operations. 
+            The pixel manipulation logic runs in compiled WebAssembly, showcasing how compute-intensive tasks benefit from near-native performance.
+            Open your browser's developer console to see debug messages from the WASM module.
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { PixelEditor } from './pkg/pixel_editor_wasm.js';
+        
+        async function run() {
+            // Initialize the WASM module
+            await init();
+            
+            // Get canvas and context
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const colorPicker = document.getElementById('colorPicker');
+            const clearBtn = document.getElementById('clearBtn');
+            const gradientBtn = document.getElementById('gradientBtn');
+            
+            // Create our pixel editor instance
+            const editor = new PixelEditor(canvas.width, canvas.height);
+            
+            // Function to convert hex color to RGB
+            function hexToRgb(hex) {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : null;
+            }
+            
+            // Function to render the canvas
+            function render() {
+                const pixelData = editor.get_pixels();
+                const imageData = new ImageData(
+                    new Uint8ClampedArray(pixelData), 
+                    canvas.width, 
+                    canvas.height
+                );
+                ctx.putImageData(imageData, 0, 0);
+            }
+            
+            // Handle color changes
+            colorPicker.addEventListener('change', (e) => {
+                const rgb = hexToRgb(e.target.value);
+                if (rgb) {
+                    editor.set_color(rgb.r, rgb.g, rgb.b, 255);
+                }
+            });
+            
+            // Handle mouse drawing
+            let isDrawing = false;
+            
+            canvas.addEventListener('mousedown', (e) => {
+                isDrawing = true;
+                draw(e);
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (isDrawing) {
+                    draw(e);
+                }
+            });
+            
+            canvas.addEventListener('mouseup', () => {
+                isDrawing = false;
+            });
+            
+            canvas.addEventListener('mouseout', () => {
+                isDrawing = false;
+            });
+            
+            function draw(e) {
+                const rect = canvas.getBoundingClientRect();
+                const x = Math.floor(e.clientX - rect.left);
+                const y = Math.floor(e.clientY - rect.top);
+                
+                editor.paint_pixel(x, y);
+                render();
+            }
+            
+            // Handle clear button
+            clearBtn.addEventListener('click', () => {
+                editor.clear();
+                render();
+            });
+            
+            // Handle gradient button
+            gradientBtn.addEventListener('click', () => {
+                editor.fill_gradient();
+                render();
+            });
+            
+            // Initial render
+            render();
+            
+            console.log('Pixel Editor loaded successfully!');
+        }
+        
+        run().catch(console.error);
+    </script>
+</body>
+</html>
